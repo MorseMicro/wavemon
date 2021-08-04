@@ -204,6 +204,9 @@ struct iw_nl80211_linkstat {
 	int8_t			bss_signal;
 	uint8_t			bss_signal_qual;
 
+	int				rx_mcs,
+				tx_mcs;
+
 	char			tx_bitrate[100],
 				rx_bitrate[100];
 
@@ -212,7 +215,9 @@ struct iw_nl80211_linkstat {
 				short_slot_time:1,
 				wme:1,
 				mfp:1,
-				tdls:1;
+				tdls:1,
+				rx_sgi:1,
+				tx_sgi:1;
 	/*
 	 * Channel survey data (requires suitable card, e.g. ath9k).
 	 */

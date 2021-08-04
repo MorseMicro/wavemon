@@ -18,11 +18,122 @@
  */
 #include "iw_if.h"
 #include "iw_nl80211.h"
+#include "info_src.h"
+
 
 /* GLOBALS */
+#define MM_80211AH_1MHZ (1)
+#define MM_80211AH_2MHZ (2)
+#define MM_80211AH_4MHZ (4)
+#define MM_80211AH_8MHZ (8)
+
 static WINDOW *w_levels, *w_stats, *w_if, *w_info, *w_net;
 static pthread_t sampling_thread;
 static time_t last_update;
+
+typedef struct bitrate_mcs {
+	int mcs;
+	float bitrate;
+}bitrate_mcs;
+
+/* Values from 80211ah 23.5 */
+static struct bitrate_mcs halow_1Mhz_long_gi_map[] = {
+	{0, 0.3},
+	{1, 0.6},
+	{2, 0.9},
+	{3, 1.2},
+	{4, 1.8},
+	{5, 2.4},
+	{6, 2.7},
+	{7, 3.0},
+	{8, 3.6}
+};
+
+static struct bitrate_mcs halow_1Mhz_short_gi_map[] = {
+	{0, 0.333},
+	{1, 0.6667},
+	{2, 1.0},
+	{3, 1.333},
+	{4, 2.0},
+	{5, 2.66},
+	{6, 3.0},
+	{7, 3.333},
+	{8, 4.000}
+};
+
+static struct bitrate_mcs halow_2Mhz_long_gi_map[] = {
+	{0, 0.65},
+	{1, 1.3},
+	{2, 1.95},
+	{3, 2.6},
+	{4, 3.9},
+	{5, 5.2},
+	{6, 5.850},
+	{7, 6.5},
+	{8, 7.8}
+};
+
+static struct bitrate_mcs halow_2Mhz_short_gi_map[] = {
+	{0, 0.722},
+	{1, 1.44},
+	{2, 2.166},
+	{3, 2.889},
+	{4, 4.333},
+	{5, 5.777},
+	{6, 6.5},
+	{7, 7.222},
+	{8, 8.666}
+};
+
+static struct bitrate_mcs halow_4Mhz_long_gi_map[] = {
+	{0, 1.35},
+	{1, 2.7},
+	{2, 4.05},
+	{3, 5.4},
+	{4, 8.1},
+	{5, 10.8},
+	{6, 12.15},
+	{7, 13.5},
+	{8, 16.2}
+};
+
+static struct bitrate_mcs halow_4Mhz_short_gi_map[] = {
+	{0, 1.5},
+	{1, 3.0},
+	{2, 4.5},
+	{3, 6.0},
+	{4, 9.0},
+	{5, 12.0},
+	{6, 13.5},
+	{7, 15.0},
+	{8, 18.0}
+};
+
+static struct bitrate_mcs halow_8Mhz_long_gi_map[] = {
+	{0, 2.925},
+	{1, 5.85},
+	{2, 8.775},
+	{3, 11.7},
+	{4, 17.55},
+	{5, 23.4},
+	{6, 26.325},
+	{7, 29.250},
+	{8, 35.1}
+};
+
+static struct bitrate_mcs halow_8Mhz_short_gi_map[] = {
+	{0, 3.250},
+	{1, 6.5},
+	{2, 9.75},
+	{3, 13.0},
+	{4, 19.5},
+	{5, 26.0},
+	{6, 29.25},
+	{7, 32.5},
+	{8, 39.0}
+};
+
+#define BITRATE_MCS_SIZE sizeof(halow_8Mhz_short_gi_map) / sizeof(halow_8Mhz_short_gi_map[0])
 
 /* Linkstat pointers, shared between sampling thread and UI main thread. */
 static struct iw_nl80211_linkstat *ls_tmp = NULL,
@@ -276,8 +387,9 @@ static void display_interface(WINDOW *w_if, struct iw_nl80211_ifstat *ifs, bool 
 {
 	struct iw_nl80211_reg ir;
 	char tmp[0x100];
-
+	const country_channel_map_t *halow_values = NULL;
 	iw_nl80211_getreg(&ir);
+	halow_values = set_s1g_channel_map();
 
 	wmove(w_if, 1, 1);
 	waddstr_b(w_if, conf_ifname());
@@ -285,9 +397,9 @@ static void display_interface(WINDOW *w_if, struct iw_nl80211_ifstat *ifs, bool 
 
 	if (if_is_up) {
 		/* Wireless device index */
-		waddstr(w_if, "wdev ");
-		sprintf(tmp, "%d", ifs->wdev);
-		waddstr_b(w_if, tmp);
+		waddstr(w_if, "IEEE 802.11ah ");
+		// sprintf(tmp, "%d", ifs->wdev);
+		// waddstr_b(w_if, tmp);
 
 		/* PHY */
 		waddstr(w_if, ", phy ");
@@ -296,9 +408,9 @@ static void display_interface(WINDOW *w_if, struct iw_nl80211_ifstat *ifs, bool 
 
 		/* Regulatory domain */
 		waddstr(w_if, ", reg: ");
-		if (ir.region > 0) {
-			waddstr_b(w_if, ir.country);
-			sprintf(tmp, " (%s)", dfs_domain_name(ir.region));
+		if (halow_values != NULL && halow_values->country > 0) {
+			waddstr_b(w_if, halow_values->country);
+			sprintf(tmp, " ");
 			waddstr(w_if, tmp);
 		} else {
 			waddstr_b(w_if, "n/a");
@@ -323,6 +435,90 @@ static void display_interface(WINDOW *w_if, struct iw_nl80211_ifstat *ifs, bool 
 	wrefresh(w_if);
 }
 
+void convert_to_80211ah_values_from_channel(int channel_5g, const country_channel_map_t *country_channel_map, channel_to_halow_freq_t *halow_vals)
+{
+	/* For 4 and 8 Mhz the channel number is parsed form VHT operation ie otherwise we get 5Ghz freq */
+	for (int i = 0; i < country_channel_map->num_mapped_channels; i++)
+	{
+		if (channel_5g == country_channel_map->ah_vals[i].channel)
+		{
+			halow_vals->halow_channel = country_channel_map->ah_vals[i].halow_channel;
+			halow_vals->bw = country_channel_map->ah_vals[i].bw;
+			halow_vals->halow_freq = country_channel_map->ah_vals[i].halow_freq;
+			return;
+		}
+	}
+}
+
+void convert_to_80211ah_values_from_freq(int freq, const country_channel_map_t *country_channel_map, channel_to_halow_freq_t *halow_vals)
+{
+	int channel = ieee80211_frequency_to_channel(freq);
+	convert_to_80211ah_values_from_channel(channel, country_channel_map, halow_vals);
+}
+
+static float get_rate(int mcs, struct bitrate_mcs x[])
+{
+	for (int i = 0; i < BITRATE_MCS_SIZE; i++)
+	{
+		if (mcs == x[i].mcs)
+			return x[i].bitrate;
+	}
+	return 0;
+}
+
+static float get_80211ah_rate(int bw, bool sgi, int mcs)
+{
+	if (bw == MM_80211AH_1MHZ)
+	{
+		if (sgi)
+		{
+			return get_rate(mcs, halow_1Mhz_short_gi_map);
+		}
+		else
+		{
+			return get_rate(mcs, halow_1Mhz_long_gi_map);
+		}
+	}
+	else if (bw == MM_80211AH_2MHZ)
+	{
+		if (sgi)
+		{
+			return get_rate(mcs, halow_2Mhz_short_gi_map);
+		}
+		else
+		{
+			return get_rate(mcs, halow_2Mhz_long_gi_map);
+		}
+	}
+	else if (bw == MM_80211AH_4MHZ)
+	{
+		if (sgi)
+		{
+			return get_rate(mcs, halow_4Mhz_short_gi_map);
+		}
+		else
+		{
+			return get_rate(mcs, halow_4Mhz_long_gi_map);
+		}
+	}
+	else if (bw == MM_80211AH_8MHZ)
+	{
+		if (sgi)
+		{
+			return get_rate(mcs, halow_8Mhz_short_gi_map);
+		}
+		else
+		{
+			return get_rate(mcs, halow_8Mhz_long_gi_map);
+		}
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+
 /** General information section */
 static void display_info(WINDOW *w_info, struct iw_nl80211_ifstat *ifs)
 {
@@ -330,6 +526,9 @@ static void display_info(WINDOW *w_info, struct iw_nl80211_ifstat *ifs)
 
 	iw_nl80211_get_power_save(ifs);
 	iw_nl80211_get_phy(ifs);
+	channel_to_halow_freq_t halow_values = {0};
+	const country_channel_map_t *country_channel_map = NULL;
+
 
 	wmove(w_info, 1, 1);
 	waddstr(w_info, "mode: ");
@@ -370,9 +569,18 @@ static void display_info(WINDOW *w_info, struct iw_nl80211_ifstat *ifs)
 
 	/* Frequency / channel */
 	wmove(w_info, 2, 1);
+	country_channel_map = set_s1g_channel_map();
 	if (ifs->freq) {
+		if (country_channel_map != NULL)
+		{
+			/* Check width returned by the NL interface and use center frequency for 2, 4 and 8 Mhz */
+			if (ifs->chan_width == MM_80211AH_1MHZ)
+				convert_to_80211ah_values_from_freq(ifs->freq, country_channel_map, &halow_values);
+			else
+				convert_to_80211ah_values_from_freq(ifs->freq_ctr1, country_channel_map, &halow_values);
+		}
 		waddstr(w_info, "freq: ");
-		sprintf(tmp, "%d MHz", ifs->freq);
+		sprintf(tmp, "%0.1f MHz", halow_values.halow_freq);
 		waddstr_b(w_info, tmp);
 
 		/* The following condition should in theory never happen: */
@@ -381,25 +589,25 @@ static void display_info(WINDOW *w_info, struct iw_nl80211_ifstat *ifs)
 			waddstr(w_info, tmp);
 		}
 
-		if (ifs->freq_ctr1 && ifs->freq_ctr1 != ifs->freq) {
-			waddstr(w_info, ", ctr1: ");
-			sprintf(tmp, "%d MHz", ifs->freq_ctr1);
-			waddstr_b(w_info, tmp);
-		}
-		if (ifs->freq_ctr2 &&
-		    ifs->freq_ctr2 != ifs->freq_ctr1 &&
-		    ifs->freq_ctr2 != ifs->freq) {
-			waddstr(w_info, ", ctr2: ");
-			sprintf(tmp, "%d MHz", ifs->freq_ctr2);
-			waddstr_b(w_info, tmp);
-		}
-
+		/* Not needed for 80211ah */
+		// if (ifs->freq_ctr1 && ifs->freq_ctr1 != ifs->freq) {
+		// 	waddstr(w_info, ", ctr1: ");
+		// 	sprintf(tmp, "%d MHz", ifs->freq_ctr1);
+		// 	waddstr_b(w_info, tmp);
+		// }
+		// if (ifs->freq_ctr2 &&
+		//     ifs->freq_ctr2 != ifs->freq_ctr1 &&
+		//     ifs->freq_ctr2 != ifs->freq) {
+		// 	waddstr(w_info, ", ctr2: ");
+		// 	sprintf(tmp, "%d MHz", ifs->freq_ctr2);
+		// 	waddstr_b(w_info, tmp);
+		// }
 		waddstr(w_info, ", channel: ");
-		sprintf(tmp, "%d", ieee80211_frequency_to_channel(ifs->freq));
+		sprintf(tmp, "%d", halow_values.halow_channel);
 		waddstr_b(w_info, tmp);
 
 		if (ifs->chan_width != (uint32_t)-1) {
-			sprintf(tmp, " (width: %s)", channel_width_name(ifs->chan_width));
+			sprintf(tmp, " (width: %d MHz)", halow_values.bw);
 			waddstr(w_info, tmp);
 		} else if (ifs->chan_type != (uint32_t)-1) {
 			sprintf(tmp, " (%s)", channel_type_name(ifs->chan_type));
@@ -495,18 +703,40 @@ static void display_info(WINDOW *w_info, struct iw_nl80211_ifstat *ifs)
 	} else {
 		wclrtoborder(w_info);
 		waddstr(w_info, "rx rate: ");
-		waddstr_b(w_info, ls_cur->rx_bitrate[0] ? ls_cur->rx_bitrate : "n/a");
+		if (ls_cur->rx_bitrate[0])
+		{
 
-		if (ls_cur->expected_thru) {
-			if (ls_cur->expected_thru >= 1024)
-				sprintf(tmp, " (exp: %.1f MB/s)",  ls_cur->expected_thru/1024.0);
-			else
-				sprintf(tmp, " (exp: %u kB/s)",  ls_cur->expected_thru);
-			waddstr(w_info, tmp);
+			sprintf(tmp, "%.3f Mbits/s MCS %d", get_80211ah_rate(halow_values.bw, ls_cur->rx_sgi, ls_cur->rx_mcs) , ls_cur->rx_mcs);
+			if (ls_cur->rx_sgi)
+				sprintf(tmp + strlen(tmp), " short GI");
+			waddstr_b(w_info, tmp);
 		}
+		else
+		{
+			waddstr_b(w_info, " n/a");
+		}
+
+		// if (ls_cur->expected_thru) {
+		// 	if (ls_cur->expected_thru >= 1024)
+		// 		sprintf(tmp, " (exp: %.1f MB/s)",  ls_cur->expected_thru/1024.0);
+		// 	else
+		// 		sprintf(tmp, " (exp: %u kB/s)",  ls_cur->expected_thru);
+		// 	waddstr(w_info, tmp);
+		// }
+
 		wmove(w_info, 5, 1);
 		waddstr(w_info, "tx rate: ");
-		waddstr_b(w_info, ls_cur->tx_bitrate[0] ? ls_cur->tx_bitrate : "n/a");
+		if (ls_cur->tx_bitrate[0])
+		{
+			sprintf(tmp, "%.3f Mbits/s MCS %d", get_80211ah_rate(halow_values.bw, ls_cur->tx_sgi, ls_cur->tx_mcs), ls_cur->tx_mcs);
+			if (ls_cur->tx_sgi)
+				sprintf(tmp + strlen(tmp), " short GI");
+			waddstr_b(w_info, tmp);
+		}
+		else
+		{
+			waddstr_b(w_info, " n/a");
+		}
 	}
 
 	wclrtoborder(w_info);

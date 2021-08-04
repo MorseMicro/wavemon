@@ -6,6 +6,19 @@
 /*
  *	Organization of scan results
  */
+
+
+/* for ht_param */
+#define IEEE80211_HT_PARAM_CHAN_WIDTH_ANY		0x04
+
+/* ht and vht information elements index */
+#define HT_OPERATION_HT_PARAM_IDX	(3)
+#define VHT_OPERATION_CHANNEL_IDX	(3)
+
+#define MM_2MHZ_5G_FREQ_OFFSET	(10)
+
+#define GET_HT_PARAM_CHAN_SEC_OFFSET_VALUE(ie)	(ie & ~(IEEE80211_HT_PARAM_CHAN_WIDTH_ANY))
+
 /**
  * struct scan_entry  -  Representation of a single scan result.
  * @ap_addr:	     MAC address
@@ -28,11 +41,13 @@ struct scan_entry {
 	struct ether_addr	ap_addr;
 	char			essid[MAX_ESSID_LEN + 2];
 	uint32_t		freq;
+	uint32_t		chan_from_vht_ie;
 	int			chan;
 	bool			has_key:1,
 				ht_capable:1,
 				rm_enabled:1,
-				mesh_enabled:1;
+				mesh_enabled:1,
+				secondary_chan_offset:1;
 
 	uint32_t		last_seen;
 	uint64_t		tsf;
@@ -223,6 +238,7 @@ typedef enum {
 	IE_MESH_MESSAGE_MIC  = 140, // 8.4.2.121: Mesh message integrity code (MIC) (of peering mgmt frames)
 	IE_DESTINATION_URI   = 141, // 8.4.2.92: Destination URI (URI/ESS detection interval values)
 	IE_U_APSD_COEXIST    = 142, // 8.4.2.93: U-APSD coexistence (duration of requested transmission)
+	IE_VHT_OPERATION     = 192,
 
 	/* 143-173 reserved */
 

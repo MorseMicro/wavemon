@@ -236,11 +236,18 @@ static int scan_dump_handler(struct nl_msg *msg, void *arg)
 			case IE_HT_CAPABILITIES:
 				new->ht_capable = true;
 				break;
+			case IE_HT_OPERATION:
+				if (GET_HT_PARAM_CHAN_SEC_OFFSET_VALUE(ie[HT_OPERATION_HT_PARAM_IDX]))
+					new->secondary_chan_offset = true;
+				break;
 			case IE_RM_CAPABILITIES:
 				new->rm_enabled = true;
 				break;
 			case IE_MESH_CONFIG:
 				new->mesh_enabled = true;
+				break;
+			case IE_VHT_OPERATION:
+				new->chan_from_vht_ie = ie[VHT_OPERATION_CHANNEL_IDX];
 				break;
 			default: /* ignored */
 				break;
@@ -361,7 +368,10 @@ static void compute_channel_stats(struct scan_result *sr)
 	sr->channel_stats = calloc(sr->num.entries, sizeof(key));
 	for (cur = sr->head; cur; cur = cur->next) {
 		if (cur->chan >= 0) {
-			key.val = cur->chan;
+			if (cur->chan_from_vht_ie)
+				key.val = cur->chan_from_vht_ie;
+			else
+				key.val = cur->chan;
 			bin = lsearch(&key, sr->channel_stats, &n, sizeof(key), cmp_key);
 			if (bin)
 				bin->count++;

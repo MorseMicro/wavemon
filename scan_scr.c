@@ -17,6 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "iw_scan.h"
+#include "info_src.h"
 
 /* GLOBALS */
 static struct scan_result sr = {
@@ -27,7 +28,6 @@ static struct scan_result sr = {
 static pthread_t scan_thread;
 static WINDOW *w_aplst;
 
-
 /**
  * Sanitize and format single scan entry as a string.
  * @cur: entry to format
@@ -37,6 +37,23 @@ static WINDOW *w_aplst;
 static void fmt_scan_entry(struct scan_entry *cur, char buf[], size_t buflen)
 {
 	size_t len = 0;
+	channel_to_halow_freq_t halow_values = {0};
+	static const country_channel_map_t *country_channel_map = NULL;
+	country_channel_map = set_s1g_channel_map();
+
+	if ((cur->chan >= 0) && (country_channel_map != NULL)) {
+		if (cur->chan_from_vht_ie)
+			convert_to_80211ah_values_from_channel(cur->chan_from_vht_ie, country_channel_map, &halow_values);
+		else {
+			/* TODO: Currently for 2 Mhz we do not use the non-lower 5G mapping. 
+			 * Need to handle the conditions accordingly when we add non-lower 5G mapping
+			 */
+			if (cur->secondary_chan_offset)
+				convert_to_80211ah_values_from_freq(cur->freq + MM_2MHZ_5G_FREQ_OFFSET, country_channel_map, &halow_values);
+			else
+				convert_to_80211ah_values_from_freq(cur->freq, country_channel_map, &halow_values);
+		}
+	}
 
 	if (cur->bss_signal) {
 		float sig_qual, sig_qual_max;
@@ -63,10 +80,10 @@ static void fmt_scan_entry(struct scan_entry *cur, char buf[], size_t buflen)
 		len += snprintf(buf + len, buflen - len, "? dBm");
 	}
 
-	if (cur->chan >= 0)
-		len += snprintf(buf + len, buflen - len, ", %s %3d, %d MHz",
+	if (cur->chan >= 0 && country_channel_map != NULL)
+		len += snprintf(buf + len, buflen - len, ", %s %3d, %.1f MHz",
 				cur->freq < 5e6 ? "ch" : "CH",
-				cur->chan, cur->freq);
+				halow_values.halow_channel, halow_values.halow_freq);
 	else
 		len += snprintf(buf + len, buflen - len, ", %g GHz",
 				cur->freq / 1e3);
@@ -107,6 +124,9 @@ static void display_aplist(WINDOW *w_aplst)
 	};
 	int i, col, line = 1;
 	struct scan_entry *cur;
+	static const country_channel_map_t *country_channel_map = NULL;
+	channel_to_halow_freq_t halow_vals = {0};
+	country_channel_map = set_s1g_channel_map();
 
 	/* Scanning can take several seconds - do not refresh while locked. */
 	if (pthread_mutex_trylock(&sr.mutex))
@@ -203,7 +223,9 @@ static void display_aplist(WINDOW *w_aplst)
 
 		for (size_t i = 0; i < sr.num.ch_stats; i++) {
 			waddstr(w_aplst, i ? ", " : " ");
-			sprintf(s, "ch#%d", sr.channel_stats[i].val);
+			if (country_channel_map != NULL)
+				convert_to_80211ah_values_from_channel(sr.channel_stats[i].val, country_channel_map, &halow_vals);
+			sprintf(s, "ch#%d", halow_vals.halow_channel);
 			wadd_attr_str(w_aplst, A_BOLD, s);
 			sprintf(s, " (%d)", sr.channel_stats[i].count);
 			waddstr(w_aplst, s);

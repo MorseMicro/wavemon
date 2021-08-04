@@ -605,7 +605,11 @@ void getconf(int argc, char *argv[])
 	}
 
 	if (version) {
-		printf("%s %s\n", PACKAGE_NAME, PACKAGE_VERSION);
+#ifdef MORSE_VERSION_STR
+		printf("%s %s - %s\n", PACKAGE_NAME, PACKAGE_VERSION, MORSE_VERSION_STR);
+#else
+ 		printf("%s %s\n", PACKAGE_NAME, PACKAGE_VERSION);
+#endif
 		printf("Distributed under the terms of the GPLv3.\n%s", help ? "\n" : "");
 	}
 	if (help) {

@@ -129,10 +129,11 @@ int handle_interface_cmd(struct cmd *cmd)
  * STATION COMMANDS
  */
 /* stolen from iw:station.c */
-void parse_bitrate(struct nlattr *bitrate_attr, char *buf, int buflen)
+void parse_bitrate(struct nlattr *bitrate_attr, char *buf, int buflen, struct iw_nl80211_linkstat *ls, bool is_rx)
 {
 	int rate = 0;
 	char *pos = buf;
+
 	struct nlattr *rinfo[NL80211_RATE_INFO_MAX + 1];
 	static struct nla_policy rate_policy[NL80211_RATE_INFO_MAX + 1] = {
 		[NL80211_RATE_INFO_BITRATE] = { .type = NLA_U16 },
@@ -158,12 +159,26 @@ void parse_bitrate(struct nlattr *bitrate_attr, char *buf, int buflen)
 	else
 		pos += snprintf(pos, buflen - (pos - buf), "(unknown)");
 
-	if (rinfo[NL80211_RATE_INFO_MCS])
+	if (rinfo[NL80211_RATE_INFO_MCS]){
 		pos += snprintf(pos, buflen - (pos - buf),
 				" MCS %d", nla_get_u8(rinfo[NL80211_RATE_INFO_MCS]));
-	if (rinfo[NL80211_RATE_INFO_VHT_MCS])
+		if (is_rx)
+			ls->rx_mcs = nla_get_u8(rinfo[NL80211_RATE_INFO_MCS]);
+		else
+			ls->tx_mcs = nla_get_u8(rinfo[NL80211_RATE_INFO_MCS]);
+
+	}
+	if (rinfo[NL80211_RATE_INFO_VHT_MCS]) {
 		pos += snprintf(pos, buflen - (pos - buf),
 				" VHT-MCS %d", nla_get_u8(rinfo[NL80211_RATE_INFO_VHT_MCS]));
+		if (is_rx) {
+			ls->rx_mcs = nla_get_u8(rinfo[NL80211_RATE_INFO_VHT_MCS]);
+		}
+		else {
+			ls->tx_mcs = nla_get_u8(rinfo[NL80211_RATE_INFO_VHT_MCS]);
+		}
+	}
+
 	if (rinfo[NL80211_RATE_INFO_40_MHZ_WIDTH])
 		pos += snprintf(pos, buflen - (pos - buf), " 40MHz");
 	if (rinfo[NL80211_RATE_INFO_80_MHZ_WIDTH])
@@ -172,8 +187,13 @@ void parse_bitrate(struct nlattr *bitrate_attr, char *buf, int buflen)
 		pos += snprintf(pos, buflen - (pos - buf), " 80P80MHz");
 	if (rinfo[NL80211_RATE_INFO_160_MHZ_WIDTH])
 		pos += snprintf(pos, buflen - (pos - buf), " 160MHz");
-	if (rinfo[NL80211_RATE_INFO_SHORT_GI])
+	if (rinfo[NL80211_RATE_INFO_SHORT_GI]){
 		pos += snprintf(pos, buflen - (pos - buf), " short GI");
+		if (is_rx)
+			ls->rx_sgi = true;
+		else
+			ls->tx_sgi = true;
+	}
 	if (rinfo[NL80211_RATE_INFO_VHT_NSS])
 		pos += snprintf(pos, buflen - (pos - buf),
 				" VHT-NSS %d", nla_get_u8(rinfo[NL80211_RATE_INFO_VHT_NSS]));
@@ -599,10 +619,14 @@ static int link_sta_handler(struct nl_msg *msg, void *arg)
 		ls->beacon_loss = nla_get_u32(sinfo[NL80211_STA_INFO_BEACON_LOSS]);
 
 	if (sinfo[NL80211_STA_INFO_TX_BITRATE])
-		parse_bitrate(sinfo[NL80211_STA_INFO_TX_BITRATE], ls->tx_bitrate, sizeof(ls->tx_bitrate));
+	{
+		parse_bitrate(sinfo[NL80211_STA_INFO_TX_BITRATE], ls->tx_bitrate, sizeof(ls->tx_bitrate), ls, false);
+	}
 
 	if (sinfo[NL80211_STA_INFO_RX_BITRATE])
-		parse_bitrate(sinfo[NL80211_STA_INFO_RX_BITRATE], ls->rx_bitrate, sizeof(ls->rx_bitrate));
+	{
+		parse_bitrate(sinfo[NL80211_STA_INFO_RX_BITRATE], ls->rx_bitrate, sizeof(ls->rx_bitrate), ls, true);
+	}
 
 	if (sinfo[NL80211_STA_INFO_STA_FLAGS]) {
 		sta_flags = (struct nl80211_sta_flag_update *)
@@ -677,8 +701,13 @@ void iw_nl80211_get_linkstat(struct iw_nl80211_linkstat *ls)
 
 	handle_interface_cmd(&cmd_getstation);
 
-	/* Channel survey data */
-	iw_nl80211_get_survey(&ls->survey);
+	/* Channel survey data
+	 * Do not do a channel survey for 11ah. This is beacuse if wavemon is used in middle of an iperf
+	 * session it will continously send a channel survey command to the driver which would result in
+	 * a drop of throughput. Since these values are not used/displayed by wavemon when using 11ah it
+	 * is safe to comment this out
+	 */
+	// iw_nl80211_get_survey(&ls->survey);
 }
 
 void iw_nl80211_getreg(struct iw_nl80211_reg *ir)
