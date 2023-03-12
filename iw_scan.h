@@ -83,6 +83,7 @@ struct cnt {
  * @num.hidden:    number of entries with hidden ESSIDs among @num.total
  * @num.two_gig:   number of 2.4GHz stations among @num.total
  * @num.five_gig:  number of 5 GHz stations among @num.total
+ * @num.mesh:      number of mesh entries among @num.total
  * @num.ch_stats:  length of @channel_stats array
  * @mutex:         protects against concurrent consumer/producer access
  */
@@ -96,7 +97,8 @@ struct scan_result {
 				open,
 				hidden,
 				two_gig,
-				five_gig;
+				five_gig,
+				mesh;
 /* Maximum number of 'top' statistics entries. */
 #define MAX_CH_STATS		3
 		size_t		ch_stats;

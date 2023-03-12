@@ -246,6 +246,11 @@ static int scan_dump_handler(struct nl_msg *msg, void *arg)
 			case IE_MESH_CONFIG:
 				new->mesh_enabled = true;
 				break;
+			case IE_MESH_ID:
+				if (len > 0 && len <= 32)
+					print_ssid_escaped(new->essid, sizeof(new->essid),
+							   ie+2, len);
+				break;
 			case IE_VHT_OPERATION:
 				new->chan_from_vht_ie = ie[VHT_OPERATION_CHANNEL_IDX];
 				break;
@@ -267,6 +272,10 @@ static int scan_dump_handler(struct nl_msg *msg, void *arg)
 		sr->max_essid_len = clamp(strlen(new->essid),
 					  sr->max_essid_len,
 					  MAX_ESSID_LEN);
+	}
+
+	if (new->mesh_enabled) {
+		sr->num.mesh++;
 	}
 
 	if (new->freq > 45000)	/* 802.11ad 60GHz spectrum */

@@ -204,7 +204,10 @@ static void display_aplist(WINDOW *w_aplst)
 		sprintf(s, ", %d hidden", sr.num.hidden);
 		waddstr(w_aplst, s);
 	}
-
+	if (sr.num.mesh) {
+		sprintf(s, ", %d mesh", sr.num.mesh);
+		waddstr(w_aplst, s);
+	}
 
 	if (sr.num.two_gig && sr.num.five_gig) {
 		waddch(w_aplst, ' ');
