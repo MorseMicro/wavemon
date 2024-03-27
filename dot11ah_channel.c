@@ -175,9 +175,10 @@ static const country_channel_map_t in_channel_map = {
 
 static const country_channel_map_t jp_channel_map = {
 	.country = "JP",
-	.num_mapped_channels = 11,
+	.num_mapped_channels = 12,
 	.ah_vals = {
 		/* 1 MHz */
+		{32,  9, 921, 1},
 		{36, 13, 923, 1},
 		{40, 15, 924, 1},
 		{44, 17, 925, 1},
