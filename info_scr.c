@@ -46,7 +46,8 @@ static struct bitrate_mcs halow_1Mhz_long_gi_map[] = {
 	{5, 2.4},
 	{6, 2.7},
 	{7, 3.0},
-	{8, 3.6}
+	{8, 3.6},
+	{9, 4.0}
 };
 
 static struct bitrate_mcs halow_1Mhz_short_gi_map[] = {
@@ -58,7 +59,8 @@ static struct bitrate_mcs halow_1Mhz_short_gi_map[] = {
 	{5, 2.66},
 	{6, 3.0},
 	{7, 3.333},
-	{8, 4.000}
+	{8, 4.000},
+	{9, 4.444}
 };
 
 static struct bitrate_mcs halow_2Mhz_long_gi_map[] = {
@@ -70,7 +72,8 @@ static struct bitrate_mcs halow_2Mhz_long_gi_map[] = {
 	{5, 5.2},
 	{6, 5.850},
 	{7, 6.5},
-	{8, 7.8}
+	{8, 7.8},
+	{9, 8.85}
 };
 
 static struct bitrate_mcs halow_2Mhz_short_gi_map[] = {
@@ -82,7 +85,8 @@ static struct bitrate_mcs halow_2Mhz_short_gi_map[] = {
 	{5, 5.777},
 	{6, 6.5},
 	{7, 7.222},
-	{8, 8.666}
+	{8, 8.666},
+	{9, 9.833}
 };
 
 static struct bitrate_mcs halow_4Mhz_long_gi_map[] = {
@@ -94,7 +98,8 @@ static struct bitrate_mcs halow_4Mhz_long_gi_map[] = {
 	{5, 10.8},
 	{6, 12.15},
 	{7, 13.5},
-	{8, 16.2}
+	{8, 16.2},
+	{9, 18.45}
 };
 
 static struct bitrate_mcs halow_4Mhz_short_gi_map[] = {
@@ -106,7 +111,8 @@ static struct bitrate_mcs halow_4Mhz_short_gi_map[] = {
 	{5, 12.0},
 	{6, 13.5},
 	{7, 15.0},
-	{8, 18.0}
+	{8, 18.0},
+	{9, 20.0}
 };
 
 static struct bitrate_mcs halow_8Mhz_long_gi_map[] = {
@@ -118,7 +124,8 @@ static struct bitrate_mcs halow_8Mhz_long_gi_map[] = {
 	{5, 23.4},
 	{6, 26.325},
 	{7, 29.250},
-	{8, 35.1}
+	{8, 35.1},
+	{9, 39.15}
 };
 
 static struct bitrate_mcs halow_8Mhz_short_gi_map[] = {
@@ -130,7 +137,8 @@ static struct bitrate_mcs halow_8Mhz_short_gi_map[] = {
 	{5, 26.0},
 	{6, 29.25},
 	{7, 32.5},
-	{8, 39.0}
+	{8, 39.0},
+	{9, 42.5}
 };
 
 #define BITRATE_MCS_SIZE sizeof(halow_8Mhz_short_gi_map) / sizeof(halow_8Mhz_short_gi_map[0])
