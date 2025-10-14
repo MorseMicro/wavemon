@@ -18,6 +18,16 @@
 #ifndef __DOT11AH_CHANNELS__
 #define __DOT11AH_CHANNELS__
 
+enum chan_scheme {
+	/* CHAN_SCHEME_ALL = it doesn't matter what channelization_scheme is set, use
+	 * this channel map.
+	 */
+	CHAN_SCHEME_ALL = ~0,
+	CHAN_SCHEME_80211_2020 = 1 << 1,  /* IEEE 802.11-2020 */
+	CHAN_SCHEME_80211_2024 = 1 << 2,  /* IEEE 802.11-2024 */
+	CHAN_SCHEME_80211_REVMF = 1 << 3, /* IEEE 802.11-2024 + 3 extra channels; REVmf is the targeted maintenance draft */
+};
+
 typedef struct {
 	/*5G channel*/
 	int channel;
@@ -32,6 +42,7 @@ typedef struct {
 typedef struct {
 	char country[3];
 	int num_mapped_channels;
+	int chan_schemes;
 	channel_to_halow_freq_t ah_vals[];
 } country_channel_map_t;
 

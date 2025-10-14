@@ -21,6 +21,7 @@
 
 static const country_channel_map_t us_channel_map = {
 	.country = "US",
+	.chan_schemes = CHAN_SCHEME_ALL,
 	.num_mapped_channels = 48,
 	.ah_vals = {
 		/* 1Mhz */
@@ -78,8 +79,9 @@ static const country_channel_map_t us_channel_map = {
 	}
 };
 
-static const country_channel_map_t au_channel_map = {
+static const country_channel_map_t au_2020_channel_map = {
 	.country = "AU",
+	.chan_schemes = CHAN_SCHEME_80211_2020,
 	.num_mapped_channels = 23,
 	.ah_vals = {
 		/* 1Mhz */
@@ -112,8 +114,51 @@ static const country_channel_map_t au_channel_map = {
 	}
 };
 
+static const country_channel_map_t au_revmf_channel_map = {
+	.country = "AU",
+	.chan_schemes = CHAN_SCHEME_80211_REVMF | CHAN_SCHEME_80211_2024,
+	.num_mapped_channels = 26,
+	.ah_vals = {
+		/* 1 MHz */
+		{36, 28, 916.0, 1},
+		{40, 30, 917.0, 1},
+		{44, 32, 918.0, 1},
+		{48, 34, 919.0, 1},
+		{52, 36, 920.0, 1},
+		{56, 38, 921.0, 1},
+		{60, 40, 922.0, 1},
+		{64, 42, 923.0, 1},
+		{116, 44, 924.0, 1},
+		{120, 46, 925.0, 1},
+		{124, 48, 926.0, 1},
+		{128, 50, 927.0, 1},
+		/* 2 MHz */
+		{38, 29, 916.5, 2},
+		{46, 33, 918.5, 2},
+		{54, 37, 920.5, 2},
+		{62, 41, 922.5, 2},
+		{118, 45, 924.5, 2},
+		{126, 49, 926.5, 2},
+		/* 4 MHz */
+		{42, 31, 917.5, 4},
+		{58, 39, 921.5, 4},
+		{122, 47, 925.5, 4},
+		/* 8 MHz */
+		{50, 35, 919.5, 8},
+		{114, 43, 923.5, 8},
+
+		/* These are the extra channels. */
+		/* 4 MHz */
+		{155, 51, 919.5, 4},
+		{171, 59, 923.5, 4},
+		/* 8 MHz */
+		{163, 55, 921.5, 8},
+	}
+};
+
 static const country_channel_map_t nz_channel_map = {
 	.country = "NZ",
+	.chan_schemes = CHAN_SCHEME_ALL,
 	.num_mapped_channels = 23,
 	.ah_vals = {
 		/* 1Mhz */
@@ -148,6 +193,7 @@ static const country_channel_map_t nz_channel_map = {
 
 static const country_channel_map_t eu_channel_map = {
 	.country = "EU",
+	.chan_schemes = CHAN_SCHEME_ALL,
 	.num_mapped_channels = 8,
 	.ah_vals = {
 		/* 1Mhz */
@@ -164,6 +210,7 @@ static const country_channel_map_t eu_channel_map = {
 
 static const country_channel_map_t in_channel_map = {
 	.country = "IN",
+	.chan_schemes = CHAN_SCHEME_ALL,
 	.num_mapped_channels = 3,
 	.ah_vals = {
 		/* 1Mhz */
@@ -175,6 +222,7 @@ static const country_channel_map_t in_channel_map = {
 
 static const country_channel_map_t jp_channel_map = {
 	.country = "JP",
+	.chan_schemes = CHAN_SCHEME_ALL,
 	.num_mapped_channels = 12,
 	.ah_vals = {
 		/* 1 MHz */
@@ -197,6 +245,7 @@ static const country_channel_map_t jp_channel_map = {
 
 static const country_channel_map_t kr_channel_map = {
 	.country = "KR",
+	.chan_schemes = CHAN_SCHEME_ALL,
 	.num_mapped_channels = 10,
 	.ah_vals = {
 		/* 1 Mhz */
@@ -217,6 +266,7 @@ static const country_channel_map_t kr_channel_map = {
 
 static const country_channel_map_t sg_channel_map = {
 	.country = "SG",
+	.chan_schemes = CHAN_SCHEME_ALL,
 	.num_mapped_channels = 12,
 	.ah_vals = {
 		/* 1 Mhz */
@@ -239,7 +289,8 @@ static const country_channel_map_t sg_channel_map = {
 
 static const country_channel_map_t *mapped_channel[] = {
 	&us_channel_map,
-	&au_channel_map,
+	&au_2020_channel_map,
+	&au_revmf_channel_map,
 	&nz_channel_map,
 	&eu_channel_map,
 	&in_channel_map,
@@ -250,28 +301,58 @@ static const country_channel_map_t *mapped_channel[] = {
 
 #define CHANNEL_MAP_SIZE (sizeof(mapped_channel) / sizeof(*mapped_channel))
 
-static void morse_get_country(country_channel_map_t *halow_vals)
+static enum chan_scheme morse_get_chan_scheme()
 {
-	FILE *country_parameter;
+	FILE *f = fopen("/sys/module/dot11ah/parameters/channelization_scheme", "r");
+	if (!f) {
+		/* This indicates an old driver. */
+		return CHAN_SCHEME_80211_2020;
+	}
 
-	country_parameter = fopen("/sys/module/morse/parameters/country", "r");
-	fscanf(country_parameter, "%2s", halow_vals->country);
-	fclose(country_parameter);
+	int r = fgetc(f);
+	fclose(f);
+	switch (r) {
+	case '1':
+		return CHAN_SCHEME_80211_2020;
+	case '2':
+		return CHAN_SCHEME_80211_2024;
+	case '3':
+		return CHAN_SCHEME_80211_REVMF;
+	default:
+		/* A driver that has something we don't understand;
+		 * default to what we think would be the driver default
+		 * for now.
+		 */
+		return CHAN_SCHEME_80211_REVMF;
+	};
+}
+
+void s1g_get_country(char *buf)
+{
+	FILE *f = fopen("/sys/module/morse/parameters/country", "r");
+	if (!f) {
+		buf[0] = '\0';
+		return;
+	}
+
+	if (fread(buf, 1, 2, f) != 2) {
+		buf[0] = '\0';
+	}
+
+	fclose(f);
 }
 
 const country_channel_map_t *set_s1g_channel_map(void)
 {
-	country_channel_map_t halow_vals;
+	char curr_country[3] = {0};
+	enum chan_scheme curr_scheme = morse_get_chan_scheme();
 
-	morse_get_country(&halow_vals);
-	if (strlen(halow_vals.country) != 0)
-	{
-		for (int i = 0; i < CHANNEL_MAP_SIZE; i++)
-		{
-			if (!strncmp(halow_vals.country, mapped_channel[i]->country, strlen(mapped_channel[i]->country)))
-			{
-				return mapped_channel[i];
-			}
+	s1g_get_country(curr_country);
+
+	for (int i = 0; i < CHANNEL_MAP_SIZE; i++) {
+		const country_channel_map_t *map = mapped_channel[i];
+		if (map->chan_schemes & curr_scheme && !strncmp(curr_country, map->country, strlen(map->country))) {
+			return map;
 		}
 	}
 
